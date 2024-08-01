@@ -1,0 +1,5 @@
+#define MSCP_MOD_ID        MODEL_ID_RC25
+#define MSCP_FW_VERSION    (1)
+#define MSCP_PORT_TYPE     PORT_TYPE_QBUS_UNIBUS
+#define MSCP_BASE_FEATURES (FEAT_VEC | FEAT_ENH_DIAG ) /* ZRCFA requires ENH DIAG */
+#define MSCP_DEF_BURSTSZ   (8)
