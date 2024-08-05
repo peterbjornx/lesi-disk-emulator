@@ -2,13 +2,7 @@
 #define _LESIH_
 #include <stdint.h>
 #include <stdio.h>
-
-#define ERR_INIT      (-1)
-#define ERR_LPARITY   (-2)
-#define ERR_HPARITY   (-3)
-#define ERR_NXM       (-4)
-#define ERR_MISMATCH  (-5)
-#define ERR_OK         (0)
+#include "error.h"
 
 void lesi_lowlevel_setup();
 

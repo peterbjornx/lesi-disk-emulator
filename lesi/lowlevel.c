@@ -17,6 +17,11 @@
 #define LESI_DIR_WRITE (1)
 #define LESI_DIR_READ  (0)
 #define NS_PER_CLK (10)
+
+/**
+ * Helper routine to suspend execution shorter than the minimum
+ * duration supported by the SDK
+ */
 void __attribute__((optimize("O0"))) wait_ns(int amount) {
     int i =0;
     amount /= NS_PER_CLK;
@@ -122,12 +127,18 @@ void lesi_lowlevel_setup() {
     gpio_set_dir( LESI_CMD_PIN      , GPIO_OUT );
     gpio_set_dir( LESI_BUF_WRITE_PIN    , GPIO_OUT );
     gpio_set_dir( LESI_BUF_OE_PIN      , GPIO_OUT );
-    gpio_put( LESI_BUF_OE_PIN, TRUE_L );
-    gpio_put( LESI_BUF_WRITE_PIN, FALSE_H );
-    gpio_put( LESI_STROBE_PIN, FALSE_H );
-    gpio_put( LESI_CMD_PIN, FALSE_H );
-    gpio_put( LESI_CP_OK_PIN , FALSE_H );
+    gpio_put( LESI_BUF_OE_PIN, 0 );
+    gpio_put( LESI_BUF_WRITE_PIN, 0 );
+    gpio_put( LESI_STROBE_PIN, 0 );
+    gpio_put( LESI_CMD_PIN, 0 );
+    gpio_put( LESI_CP_OK_PIN , 0 );
     lesi_bus_data_dir( LESI_DIR_READ );
+
+    /* 
+    There is no guaranteed pulse width for the INIT signal,
+    as such, we need to use a pin change interrupt to recognize its
+    rising edge 
+    */
     gpio_set_irq_enabled_with_callback( LESI_INIT_PIN, GPIO_IRQ_EDGE_RISE, 1, lesi_init_irq );
 }
 
@@ -166,7 +177,9 @@ int lesi_lowlevel_write( uint16_t data, int cmd ) {
 
     if ( saw_init )
         return ERR_INIT;
-    /*(printf("LESI WRITE: %07o [%i] ", data, cmd);
+
+#ifdef CFG_DBG_LESI_IO
+    printf("LESI WRITE: %07o [%i] ", data, cmd);
     if ( cmd ) {
         printf("WC=%i, REG=%i",LESI_CMD_WORDCNT(data),LESI_CMD_REGSEL_R(data));
         if ( data & LESI_CMD_WRITE)
@@ -182,7 +195,8 @@ int lesi_lowlevel_write( uint16_t data, int cmd ) {
         if ( data & LESI_CMD_SA)
             printf(" SA");
     }
-    printf("\n");*/
+    printf("\n");
+#endif
 
     return ERR_OK;
 }
@@ -232,7 +246,9 @@ int lesi_lowlevel_read_strobe( int waitxfer ) {
 
 int lesi_lowlevel_wait_ready() {
     uint16_t pin;
-    //printf("LESI WAIT....");
+#ifdef CFG_DBG_LESI_IO
+    printf("LESI WAIT....");
+#endif
     busy_wait_us(50);
     for ( ;; ) {
         if ( gpio_get(LESI_T1_PIN))
@@ -240,15 +256,23 @@ int lesi_lowlevel_wait_ready() {
         if ( saw_init )
             return ERR_INIT;
     }
+#ifdef CFG_DBG_LESI_IO
     printf("DONE\n");
+#endif
     //TODO: A better version of this must be possible
 }
 
+/**
+ * Sets the controller power good signal.
+ */
 void lesi_lowlevel_set_pwrgood( int good ) {
     gpio_put( LESI_CP_OK_PIN, good );
     busy_wait_us_32( LESI_DELAY_PWRGOOD );
 }
 
+/**
+ * Sends a reset pulse to the KLESI card
+ */
 void lesi_lowlevel_reset_klesi() { 
     gpio_set_mask( 1 << LESI_AC_CLEAR_PIN );
     busy_wait_us_32( LESI_DELAY_AC_CLEAR );
