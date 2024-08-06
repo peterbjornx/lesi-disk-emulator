@@ -66,6 +66,8 @@ int lesi_read_ram_word( int addr, uint16_t *data );
 
 int lesi_set_host_addr( uint32_t addr );
 
+int lesi_handle_status( void );
+
 int lesi_read_dma( uint16_t *buffer, int count );
 int lesi_write_dma( uint16_t *buffer, int count );
 int lesi_write_dma_zeros( int count );

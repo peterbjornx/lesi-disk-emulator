@@ -1,8 +1,6 @@
 #include "lesi/lesi.h"
 #include "pico/stdlib.h"
 
-/* VECTOR forces RAM address 1? */
-
 /**
  * Write to a single register on the KLESI card
  * @param addr Must be one of the LESI_REG_ constants
@@ -54,14 +52,18 @@ int lesi_write_ram( int addr, const uint16_t *data, int count ) {
     cmd  = LESI_CMD_WRITE;
     cmd |= LESI_CMD_REGSEL(LESI_REG_RAM);
     cmd |= LESI_CMD_WORDCNT( addr );
+
     status = lesi_lowlevel_write(  cmd, 1  ); 
     if ( status )
         return status;
+
     while ( count-- ) {
         status = lesi_lowlevel_write( *data++, 0 );
         if ( status )
             return status;
     }
+
+    return ERR_OK;
 }
 
 int lesi_read_ram_word( int addr, uint16_t *data ) {
@@ -76,7 +78,7 @@ int lesi_read_ram_word( int addr, uint16_t *data ) {
     return lesi_lowlevel_read( data );
 }
 
-int     lesi_set_host_addr( uint32_t addr ) {
+int lesi_set_host_addr( uint32_t addr ) {
     int status;
     status = lesi_write_reg( LESI_REG_UAL, addr );
     if ( status )
@@ -103,240 +105,6 @@ int lesi_handle_status( void ) {
         return ERR_NXM;
     return ERR_OK;
 
-}
-
-int lesi_read_dma_block( uint16_t *buffer, int count ) {
-    uint16_t cmd, bcount, sr;
-    int status;
-    cmd  = LESI_CMD_DO_NPR;
-    cmd |= LESI_CMD_REGSEL(LESI_REG_RAM);
-    if ( count >= 16 ) {
-        cmd |= LESI_CMD_WORDCNT( 0 );
-    } else {
-        cmd |= LESI_CMD_WORDCNT(16 - count);
-    }
-    
-    /* Issue the DO NPR command */
-    status = lesi_lowlevel_write(  cmd, 1  );
-    if ( status )
-        return status;
-
-    /* Wait for the NPR transaction to complete */
-    status = lesi_lowlevel_wait_ready();
-    if ( status )
-        return status;
-    
-    /* Stop the NPR from being reissued as we read out the data */
-    cmd &= ~LESI_CMD_DO_NPR;
-    status = lesi_lowlevel_write(  cmd, 1  );
-    if ( status )
-        return status;
-    
-    while ( count-- ) {
-        /* Accept a word of data from the KLESI RAM */
-        status = lesi_lowlevel_read( buffer++ );
-        if ( status )
-            return status;
-        
-        /* Request the next word of data */
-        if ( count ) {
-            status = lesi_lowlevel_read_strobe( 0 );
-            if ( status )
-                return status;
-        }
-    }
-
-    return ERR_OK;
-}
-
-int lesi_read_dma( uint16_t *buffer, int count ) {
-    int bcount = 16, status;
-
-    while ( count ) {
-        if ( count < bcount )
-            bcount = count;
-        
-        /* Read the block */
-        status = lesi_read_dma_block( buffer, bcount );
-        if ( status )
-            return status;
-
-        buffer += bcount;
-        count  -= bcount;
-    }
-    return lesi_handle_status();
-}
-
-int lesi_read_dma( uint16_t *buffer, int count ) {
-    uint16_t cmd, bcount, sr;
-    int status;
-    cmd  = LESI_CMD_DO_NPR;
-    cmd |= LESI_CMD_REGSEL(LESI_REG_RAM);
-    if ( count >= 16 ) {
-        cmd |= LESI_CMD_WORDCNT( 0 );
-    } else {
-        cmd |= LESI_CMD_WORDCNT(16 - count);
-    }
-    
-    status = lesi_lowlevel_write(  cmd, 1  );
-    if ( status )
-        return status;
-
-    while ( count > 0 ) {
-        //TODO: Check status
-        bcount = count;
-        if ( bcount > 16 )
-            bcount = 16;
-        count -= bcount;
-        status = lesi_lowlevel_wait_ready();
-        if ( status )
-            return status;
-        if ( count < 16 ) {
-            // Last xfer, stop DMA
-            cmd &= ~LESI_CMD_DO_NPR;
-            status = lesi_lowlevel_write(  cmd, 1  );
-            if ( status )
-                return status;
-        }
-        while ( bcount-- ) {
-            status = lesi_lowlevel_read( buffer++ );
-            if ( status )
-                return status;
-            if ( bcount ) {
-                status = lesi_lowlevel_read_strobe( 0 );
-                if ( status )
-                    return status;
-            }
-            if ( status )
-                return status;
-        }
-        if ( count > 0 && count < 16 ) {   
-            cmd |=  LESI_CMD_DO_NPR;
-            cmd |=  LESI_CMD_WORDCNT(16 - count);
-            status = lesi_lowlevel_write(  cmd, 1  );
-            if ( status )
-                return status;
-        } else if ( count > 0 ) {
-            status = lesi_lowlevel_write(  cmd, 1  );
-            if ( status )
-                return status;
-        }
-
-    }
-
-    return lesi_handle_status();
-}
-
-int lesi_write_dma( uint16_t *buffer, int count ) {
-    uint16_t cmd, bcount, start = 1, sr;
-    int status;
-    cmd  = LESI_CMD_WRITE;
-    cmd |= LESI_CMD_REGSEL(LESI_REG_RAM);
-    if ( count >= 16 ) {
-        cmd |= LESI_CMD_WORDCNT( 0 );
-    } else {
-        cmd |= LESI_CMD_WORDCNT(16 - count);
-    }
-    status = lesi_lowlevel_write(  cmd, 1  );
-    if ( status )
-        return status;
-    while ( count > 0 ) {
-        //TODO: Check status
-        bcount = count;
-        if ( bcount > 16 )
-            bcount = 16;
-        count -= bcount;
-        while ( bcount-- ) {
-            status = lesi_lowlevel_write( *buffer++, 0 );
-            if ( status )
-                return status;
-        }
-        if ( start ) {
-            cmd |=  LESI_CMD_DO_NPR;
-            status = lesi_lowlevel_write(  cmd, 1  );
-            if ( status )
-                return status;
-           // start = 0;
-        }
-        status = lesi_lowlevel_wait_ready();
-        if ( status )
-            return status;
-        if ( 1 ) { //count < 16 ) {
-            // Last xfer, stop DMA
-            cmd = LESI_CMD_WRITE;
-            cmd &= ~LESI_CMD_DO_NPR;
-            if ( count <= 0 )
-                cmd &= ~LESI_CMD_WRITE;
-            status = lesi_lowlevel_write(  cmd, 1  );
-            if ( status )
-                return status;
-        }
-        if ( count > 0 && count < 16 ) {      
-            cmd |=  LESI_CMD_WORDCNT(16 - count);
-            status = lesi_lowlevel_write(  cmd, 1  );
-            if ( status )
-                return status;
-            start = 1;
-        }
-    }
-
-    return lesi_handle_status();
-}
-
-int lesi_write_dma_zeros( int count ) {
-    uint16_t cmd, bcount, start = 1, sr;
-    int status;
-    cmd  = LESI_CMD_WRITE;
-    cmd |= LESI_CMD_REGSEL(LESI_REG_RAM);
-    if ( count >= 16 ) {
-        cmd |= LESI_CMD_WORDCNT( 0 );
-    } else {
-        cmd |= LESI_CMD_WORDCNT(16 - count);
-    }
-    status = lesi_lowlevel_write(  cmd, 1  );
-    if ( status )
-        return status;
-    while ( count > 0 ) {
-        //TODO: Check status
-        bcount = count;
-        if ( bcount > 16 )
-            bcount = 16;
-        count -= bcount;
-        while ( bcount-- ) {
-            status = lesi_lowlevel_write( 0, 0 );
-            if ( status )
-                return status;
-        }
-        if ( start ) {
-            cmd |=  LESI_CMD_DO_NPR;
-            status = lesi_lowlevel_write(  cmd, 1  );
-            if ( status )
-                return status;
-           // start = 0;
-        }
-        status = lesi_lowlevel_wait_ready();
-        if ( status )
-            return status;
-        if ( 1 ) {//count <= 16 ) {
-            // Last xfer, stop DMA
-            cmd = LESI_CMD_WRITE;
-            cmd &= ~LESI_CMD_DO_NPR;
-            if ( count <= 0 )
-                cmd &= ~LESI_CMD_WRITE;
-            status = lesi_lowlevel_write(  cmd, 1  );
-            if ( status )
-                return status;
-        }
-        if ( count > 0 && count < 16 ) {      
-            cmd |=  LESI_CMD_WORDCNT(16 - count);
-            status = lesi_lowlevel_write(  cmd, 1  );
-            if ( status )
-                return status;
-            start = 1;
-        }
-    }
-
-    return lesi_handle_status();
 }
 
 
