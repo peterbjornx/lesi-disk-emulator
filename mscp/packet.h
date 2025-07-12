@@ -20,32 +20,41 @@
  *
  *	Fred Canter 10/22/83
 */
+#ifndef __mscppkt__
+#define __mscppkt__
+
 #include <stdint.h>
 #include "mscp/opcode.h"
+
 typedef uint16_t u_short;
 typedef uint64_t quad;
 typedef uint8_t  u_char;
+
+
+typedef struct __attribute__((packed)) mscp_id {
+	uint32_t i_uid_l;
+	uint16_t i_uid_h;
+	uint8_t  i_model;
+	uint8_t  i_class;
+} mscp_id_t;
+
 /*
  * An MSCP packet
  */
 
 struct __attribute__((packed)) mscp_pkt {
-	u_short	m_cmdref;		/* command reference number */
-	u_short	m_elref;		/* plus error log reference number */
-	u_short	m_unit;			/* unit number */
-	u_short	m_xxx1;			/* unused */
-	u_char	m_opcode;		/* opcode */
+	uint32_t m_cmdref;		/* command reference number */
+	u_short	m_unit;			/* unit number */ //4
+	u_short	m_xxx1;			/* unused */ 
+	u_char	m_opcode;		/* opcode *///8
 	u_char	m_flags;		/* end message flags */
 	u_short	m_modifier;		/* modifiers */
-	union {
+	union {// 12
 	struct {
-		u_short	Ms_bytecnt;	/* byte count */
-		u_short	Ms_zzz2;	/* 64kb max on V7 */
-		u_short	Ms_buf_l;	/* buffer descriptor low word */
-		u_short	Ms_buf_h;	/* buffer descriptor hi  word */
+		long	Ms_bytecnt;	/* byte count */
+		long  	Ms_buf; 	/* buffer descriptor hi  word */
 		long	Ms_xx2[2];	/* unused */
-		u_short	Ms_lbn_l;	/* logical block number low word */
-		u_short	Ms_lbn_h;	/* logical bhock number hi  word */
+		long    Ms_lba;	    /* logical bhock number hi  word */
 		long	Ms_xx4;		/* unused */
 		long	*Ms_dscptr;	/* pointer to descriptor (software) */
 		long	Ms_sftwds[4];	/* software words, padding */
@@ -57,6 +66,15 @@ struct __attribute__((packed)) mscp_pkt {
 		u_short	Ms_usefrac;	/* use fraction */
 		long	Ms_time;	/* time and date */
 	} m_setcntchar;
+	struct {
+		u_short	Ms_rsvd;	/* MSCP version */
+		u_short	Ms_unitflgs;/* unit flags */
+		 long  Ms_rsvd2[3];
+		uint32_t Ms_ddp;
+	} m_online;
+	struct {
+		uint32_t Ms_orn;
+	} m_abort;
 	struct {
 		u_short	Ms_multunt;	/* multi-unit code */
 		u_short	Ms_unitflgs;	/* unit flags */
@@ -81,6 +99,54 @@ struct __attribute__((packed)) mscp_pkt {
 typedef struct mscp_pkt mscp_pkt_t;
 
 /*
+ * An MSCP response
+ */
+struct __attribute__((packed)) mscp_resp {
+	uint32_t m_cmdref;		/* command reference number */
+
+	u_short m_rsvd;
+	u_short	m_seqn;			/* plus error log reference number */	
+
+	u_char	m_endcode;		/* opcode    */
+	u_char	m_flags;		/*           */
+	u_short	m_status;		/* status    */
+	union {
+	struct {
+		u_short	Ms_version;	/* MSCP version */
+		u_short	Ms_cntflgs;	/* controller flags */
+		u_short	Ms_timeout;	/* host timeout */
+		u_char  Ms_csvrsn;  /* controller sw version */
+		u_char  Ms_chvrsn;  /* controller hw version */
+		mscp_id_t Ms_id;
+	} m_setcntchar;
+	struct {
+		u_short	Ms_multiunit; /* Multiunit code */
+		u_short	Ms_unitflgs;  /* unit flags */
+		u_char  Ms_spindles;  /* spindle count */
+		u_char  Ms_rsvd3[3];
+		mscp_id_t Ms_unitid;   /* unit identifier */
+		uint32_t Ms_media;    /* media type */
+		uint32_t Ms_rsvd4;    /* reserved */
+		uint32_t Ms_size;     /* unit size */
+		uint32_t Ms_vsn;      /* Volume serial number */
+	} m_online;
+	struct {
+		long	Ms_bytecnt;	/* byte count */
+		long  	Ms_buf; 	/* buffer descriptor hi  word */
+		long	Ms_xx2[2];	/* unused */
+		long    Ms_lba;	    /* Bad block LBA */
+		long	Ms_xx4;		/* unused */
+	} m_generic;
+	struct {
+		uint32_t Ms_orn;
+	} m_abort;
+	uint8_t m_raw[48];
+	} m_un;
+};
+
+typedef struct mscp_resp mscp_resp_t;
+
+/*
  * generic packet
  */
 
@@ -92,7 +158,6 @@ typedef struct mscp_pkt mscp_pkt_t;
 #define	m_lbn_h		m_un.m_generic.Ms_lbn_h
 #define	m_dscptr	m_un.m_generic.Ms_dscptr
 #define	m_sftwds	m_un.m_generic.Ms_sftwds
-#define	m_status	m_modifier
 
 /*
  * Abort / Get Command Status packet
@@ -164,7 +229,7 @@ typedef struct mscp_pkt mscp_pkt_t;
  *	NOTE: MSCP packet must be padded to this size.
  */
 
-struct mslg {
+typedef struct mscp_errlog {
 	int	me_cmdref;		/* command reference number */
 	int	me_elref;		/* error log reference number */
 	short	me_unit;		/* unit number */
@@ -183,7 +248,9 @@ struct mslg {
 	int	me_volser[2];		/* volume serial number */
 	int	me_hdr[2];		/* header */
 	char	me_sdistat[12];		/* SDI status information */
-};
+} mscp_errlog_t;
 
 #define	me_busaddr	me_unitid
 #define	me_sdecyl	me_group
+
+#endif

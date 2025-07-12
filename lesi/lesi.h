@@ -13,12 +13,14 @@ int  lesi_lowlevel_read( uint16_t *data );
 int lesi_lowlevel_read_strobe( int waitxfer );
 
 int  lesi_lowlevel_wait_ready();
+int  lesi_lowlevel_wait_busy();
 
 void lesi_lowlevel_set_pwrgood( int good );
 
 void lesi_lowlevel_reset_klesi();
 
 void lesi_clear_init();
+int lesi_check_init();
 
 /* KLESI Command register definitions */
 #define LESI_CMD_WORDCNT(i)   ((i & 15)<<0)
@@ -60,6 +62,9 @@ void lesi_clear_init();
 int  lesi_write_reg( int addr, uint16_t data );
 int  lesi_read_reg ( int addr, uint16_t *data );
 
+int lesi_read_srflags( uint16_t *data );
+int lesi_read_sr( uint16_t *data );
+
 int lesi_write_ram_word( int addr, uint16_t data );
 int lesi_write_ram( int addr, const uint16_t *data, int count );
 int lesi_read_ram_word( int addr, uint16_t *data );
@@ -72,10 +77,12 @@ int lesi_read_dma( uint16_t *buffer, int count );
 int lesi_write_dma( uint16_t *buffer, int count );
 int lesi_write_dma_zeros( int count );
 
-int lesi_send_intr( uint16_t vector, uint16_t status );
+int lesi_send_intr( uint16_t vector);
+int lesi_sa_intr  ( uint16_t vector, uint16_t status );
 int lesi_sa_write ( uint16_t sa );
 int lesi_sa_read  ( uint16_t *data ); 
 int lesi_sa_end   ( void ) ;
 int lesi_sa_read_response( uint16_t *data );
+int lesi_sa_read_response_intr( uint16_t *data );
 
 #endif

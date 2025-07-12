@@ -69,7 +69,7 @@ int lesi_read_dma( uint16_t *buffer, int count ) {
 /**
  * Writes a single 0 to 16 word block to host memory.
  */
-int lesi_write_dma_block( uint16_t *buffer, int count ) {
+int lesi_write_dma_block( const uint16_t *buffer, int count ) {
     uint16_t cmd;
     int status;
 

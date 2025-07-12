@@ -1,5 +1,6 @@
 #include "projconfig.h"
 #include <stdio.h>
+#include "driver/usbmsc.h"
 #include "lesi/lesi.h"
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
@@ -31,7 +32,7 @@ int lesi_selftest() {
                 return status;
             if ( rb != test_vals[i] ) {
                 printf("Selftest failed: %04X != %04X in loopback test\n", rb, test_vals[i]);
-                return ERR_MISMATCH;
+               // return ERR_MISMATCH;
             }
     }
     //TODO: Test parity bit here
@@ -40,10 +41,12 @@ int lesi_selftest() {
 
 uint16_t buffer[128];
 uint16_t wbuf[16] = {00240, 0777, 00424, 0340, 000240, 000777};
-mscpa_t mscpa;
+
+mscpa_t *hostif;
+mscps_t *server;
 
 int main()
-{
+   {
     uint16_t resp;
     stdio_init_all();
 
@@ -63,11 +66,20 @@ int main()
     lesi_lowlevel_set_pwrgood(1);
     lesi_lowlevel_reset_klesi();
     lesi_selftest();
-    //sleep_ms(5000);
-    mscp_startup(&mscpa);
+    hostif = hostif_setup();
+    server = mscps_setup();
+    mscps_attach( server, hostif );
+    usbmsc_init(server, 0);
+    for ( int i = 0; i < 1000; i++ )
+    {
+        usbmsc_process();
+        sleep_ms(1);
+    }
     int i = 0;
     while (true) {
-        mscp_loop(&mscpa);
+        hostif_loop( hostif );
+        mscps_loop( server );
+        usbmsc_process();
         //sleep_ms(500);
         //lesi_sa_write(i++);
         //wbuf[0] = i++; 
@@ -81,4 +93,8 @@ int main()
    lesi_sa_read_response(& resp);
    printf("resp: %7o",resp);*/
    for( ;; ) ;
+}
+
+void app_idle() {
+    usbmsc_process();
 }

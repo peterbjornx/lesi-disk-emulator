@@ -337,19 +337,34 @@
 #define	M_TF_GCR	0x04	/* Group Code Recording 6250 bpi */
 #define	M_TF_BLK	0x08	/* Cartridge Block Mode */
 
-#ifdef	notnow
 /*
  * Define a few of the common controller and drive types for reference but
  * don't actually force the preprocessor to handle even more defines.
 */
+#define M_CM_HSC50  1
 #define	M_CM_UDA50	2
+#define M_CM_RC25   3
+#define M_CM_VMS    4
 #define	M_CM_TU81	5
 #define	M_CM_UDA50A	6
+#define M_CM_RQDX2  7
+#define M_CM_TOPS   8
 #define	M_CM_TK50	9
 #define	M_CM_TQK50	9
+#define M_CM_RUX50  10
+#define M_CM_KFBTA  11
+#define M_CM_KDA50Q 12
 #define	M_CM_TK70	14
 #define	M_CM_TQK70	14
+
 #define	M_CM_RQDX3	19
-#endif
+
+#define M_CC_RESERV    0
+#define M_CC_MASS      1
+#define M_CC_DISK166   2
+#define M_CC_TAPE      3
+#define M_CC_DISK144   4
+#define M_CC_LOADER    5
+#define M_CC_SCSI      6
 
 #endif	/* _MSCP_COMMON_H_ */

@@ -39,7 +39,21 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(LESIDrive LESIDrive.c lesi/lowlevel.c lesi/klesi.c mscp/portinit.c mscp/mscp.c mscp/cmdring.c)
+add_executable(LESIDrive 
+  LESIDrive.c 
+  driver/usbmsc.c
+  lesi/lowlevel.c 
+  lesi/klesi.c 
+  lesi/npr.c
+  mscp/hostif/portinit.c
+  mscp/hostif/cmdring.c
+  mscp/hostif/rspring.c
+  mscp/hostif/hostif.c
+  mscp/server/server.c
+  mscp/server/queue.c
+  mscp/server/cntrl.c
+  mscp/server/unit.c
+  mscp/mscp.c )
 
 pico_set_program_name(LESIDrive "LESIDrive")
 pico_set_program_version(LESIDrive "0.1")
@@ -48,11 +62,19 @@ pico_set_program_version(LESIDrive "0.1")
 pico_generate_pio_header(LESIDrive ${CMAKE_CURRENT_LIST_DIR}/blink.pio)
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(LESIDrive 0)
-pico_enable_stdio_usb(LESIDrive 1)
+pico_enable_stdio_uart(LESIDrive 1)
+pico_enable_stdio_usb(LESIDrive 0)
+
+target_compile_definitions(LESIDrive PRIVATE
+  PICO_DEFAULT_UART=0
+  PICO_DEFAULT_UART_TX_PIN=28
+  PICO_DEFAULT_UART_RX_PIN=29
+)
 
 # Add the standard library to the build
 target_link_libraries(LESIDrive
+    tinyusb_host
+    tinyusb_board
         pico_stdlib)
 
 # Add the standard include files to the build

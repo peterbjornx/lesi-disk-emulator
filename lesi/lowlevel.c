@@ -1,3 +1,5 @@
+#include <hardware/watchdog.h>
+
 #include "lesi/hwconfig.h"
 #include "lesi/lesi.h"
 #include "pico/stdlib.h"
@@ -96,6 +98,13 @@ void lesi_init_irq(uint gpio, uint32_t event_mask) {
 void lesi_clear_init() {
     while (gpio_get(LESI_INIT_PIN));
     saw_init = 0;
+#define AIRCR_Register (*((volatile uint32_t*)(PPB_BASE + 0x0ED0C)))
+
+    AIRCR_Register = 0x5FA0004;
+}
+
+int lesi_check_init() {
+    return saw_init;
 }
 
 /**
@@ -255,6 +264,26 @@ int lesi_lowlevel_wait_ready() {
             return ERR_OK;
         if ( saw_init )
             return ERR_INIT;
+        app_idle();
+    }
+#ifdef CFG_DBG_LESI_IO
+    printf("DONE\n");
+#endif
+    //TODO: A better version of this must be possible
+}
+
+int lesi_lowlevel_wait_busy() {
+    uint16_t pin;
+#ifdef CFG_DBG_LESI_IO
+    printf("LESI WAIT....");
+#endif
+    //busy_wait_us(50);
+    for ( ;; ) {
+        if ( !gpio_get(LESI_T1_PIN))
+            return ERR_OK;
+        if ( saw_init )
+            return ERR_INIT;
+        app_idle();
     }
 #ifdef CFG_DBG_LESI_IO
     printf("DONE\n");
