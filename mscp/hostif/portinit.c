@@ -1,6 +1,9 @@
 #include "mscp/hostif/hostif.h"
 #include "lesi/lesi.h"
 #include <stdio.h>
+#include <mscp/server/server.h>
+#include <pico/time.h>
+
 #include "projconfig.h"
 
 void hostif_istep1( mscpa_t *a ) {
@@ -82,8 +85,8 @@ void hostif_istep2( mscpa_t *a ) {
         status = lesi_sa_write( sa_out );
     if ( status )
         goto err;
-        
-    /* Read response */
+
+
     /* Read response */
     if ( a->init_ie && a->vector != 0 )
         status = lesi_sa_read_response_intr( &sa_in );
@@ -136,7 +139,7 @@ void hostif_istep3( mscpa_t *a ) {
         
 
     /* Read response */
-    if ( a->init_ie && a->vector != 0 )
+    if ( a->init_ie && a->vector != 0 ) //XXX: This is a kludge to enable KLESI-UA, should be tested on -QA too
         status = lesi_sa_read_response_intr( &sa_in );
     else
         status = lesi_sa_read_response( &sa_in );
@@ -225,10 +228,7 @@ void hostif_istep4( mscpa_t *a ) {
         goto err;
 
     /* Read response */
-    if ( a->init_ie && a->vector != 0 && a->step == 4 )
-        status = lesi_sa_read_response_intr( &sa_in );
-    else
-        status = lesi_sa_read_response( &sa_in );
+    status = lesi_sa_read_response( &sa_in ); //TODO: Why does this not need to be _intr?
     if ( status )
         goto err;
     go        =  sa_in & SA_INIT4W_GO;
