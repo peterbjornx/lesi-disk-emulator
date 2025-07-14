@@ -112,7 +112,6 @@ err:
     }
     lesi_sa_write( sa_out | SA_ERROR );
     printf("Error in step 2: %i, retrying\n", status);
-    return;
 }
 
 void hostif_istep3( mscpa_t *a ) {
@@ -184,12 +183,11 @@ err:
     }
     lesi_sa_write( sa_out | SA_ERROR );
     printf("Error in step 3: %i, retrying\n", status);
-    return;
 }
 uint16_t buf[32];
 
 void hostif_istep4( mscpa_t *a ) {
-    uint16_t sa_out, sa_in, go, lf;
+    uint16_t sa_out = 0, sa_in, go, lf;
     int status, rsize, csize;
 
     /* Clear buffers */
@@ -271,7 +269,6 @@ err:
     }
     lesi_sa_write( sa_out | SA_ERROR );
     printf("Error in step 4: %i, retrying\n", status);
-    return;
 }
 
 void hostif_diagwrap( mscpa_t *a ) {
@@ -295,7 +292,6 @@ err:
         return;
     }
     printf("Error in diag wrap: %i, retrying\n", status);
-    return;
 }
 
 void hostif_diagpp( mscpa_t *a ) {
@@ -353,5 +349,4 @@ err:
         return;
     }
     printf("Error in diag purge poll: %i, retrying\n", status);
-    return;
 }

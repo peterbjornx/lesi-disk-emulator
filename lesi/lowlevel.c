@@ -1,9 +1,23 @@
+/**
+ * @file lesi/lowlevel.c
+ * @author Peter Bosch <public@pbx.sh>
+ *
+ * This file implements the lowest level logic for communicating with
+ * the KLESI adapter. As a result it is one of the main areas of focus when
+ * porting the emulator to different microcontroller platforms.
+ *
+ * As a rule of thumb, the functionality implemented here wraps electrical
+ * signalling via GPIO pins into more understandable functions, but does
+ * not implement any bus logic beyond basic timing.
+ *
+ */
 #include <hardware/watchdog.h>
+#include <pico/stdlib.h>
 
 #include "lesi/hwconfig.h"
 #include "lesi/lesi.h"
-#include "pico/stdlib.h"
 
+void app_idle();
 
 /* Convenience definitions */
 #define TRUE_L             (0)
@@ -48,7 +62,7 @@ static int lesi_bus_dir = -1;
 
 /**
  * Switch over LESI bus IO direction
- * Note: no turnaround delay is used sa
+ * Note: no turnaround delay is used
  */
 static inline void lesi_bus_data_dir ( int write ) { 
     if ( lesi_bus_dir == write )
@@ -71,6 +85,11 @@ static inline void lesi_bus_data_dir ( int write ) {
     
 }
 
+/**
+ * Read value currently on LESI C/D bus, verifying parity bits.
+ * @param data Output pointer for the data thus read.
+ * @return Error code ( ERR_OK, ERR_LPARITY )
+ */
 static inline int lesi_bus_read( uint16_t *data ) {
     uint32_t datin;
     uint32_t par, parexp;
@@ -82,33 +101,50 @@ static inline int lesi_bus_read( uint16_t *data ) {
 
     if (parexp != par )
         return ERR_LPARITY;
-    //printf("LESI READ : %07o\n", *data);
 
     return ERR_OK;
 }
 
-volatile int saw_init = 0;
 
 /* Low level actions */
+
+volatile int saw_init = 0;
+
+/**
+ * ISR for LESI INIT L state change interrupt
+ */
 void lesi_init_irq(uint gpio, uint32_t event_mask) {
     printf("Init received!\n");
     saw_init = 1;
 }
 
+/**
+ * Handle INIT request and clear INIT flag.
+ */
 void lesi_clear_init() {
+
+    /* Wait for INIT to be deasserted */
     while (gpio_get(LESI_INIT_PIN));
+
+    /* Clear INIT flag */
+
+    //XXX: Reset emulator firmware to work around logic bugs
     saw_init = 0;
 #define AIRCR_Register (*((volatile uint32_t*)(PPB_BASE + 0x0ED0C)))
 
     AIRCR_Register = 0x5FA0004;
 }
 
+/**
+ * Check whether a LESI INIT was requested
+ * @return 0 if no INIT was seen.
+ */
 int lesi_check_init() {
     return saw_init;
 }
 
 /**
- * Configure all needed GPIO pads
+ * Configure all needed GPIO pads and register INIT interrupt
  */
 void lesi_lowlevel_setup() {
     int i;
@@ -151,6 +187,12 @@ void lesi_lowlevel_setup() {
     gpio_set_irq_enabled_with_callback( LESI_INIT_PIN, GPIO_IRQ_EDGE_RISE, 1, lesi_init_irq );
 }
 
+/**
+ * Issue a write cycle on the LESI bus.
+ * @param data The data to drive on LESI C/D
+ * @param cmd  Whether this should be a command cycle.
+ * @return Status code.
+ */
 int lesi_lowlevel_write( uint16_t data, int cmd ) {
     uint32_t data_par, par;
 
@@ -161,7 +203,7 @@ int lesi_lowlevel_write( uint16_t data, int cmd ) {
     data_par  = LESI_DATA_MASK & ~data;
     data_par |= LESI_PAR_MASK  & (par << LESI_PAR_PIN);
 
-    /* Set command bit */
+    /* Assert COMMAND L */
     if ( cmd ) {
         gpio_set_mask( 1 << LESI_CMD_PIN );
         wait_ns( LESI_DELAY_CMD_STROBE );
@@ -177,6 +219,7 @@ int lesi_lowlevel_write( uint16_t data, int cmd ) {
     wait_ns( LESI_DELAY_WR_STROBE );
     gpio_clr_mask( LESI_STROBE_MASK );
 
+    /* Deassert COMMAND L */
     if ( cmd ) {
         wait_ns( LESI_DELAY_STROBE_CMD );
         gpio_clr_mask( 1 << LESI_CMD_PIN );
@@ -210,6 +253,11 @@ int lesi_lowlevel_write( uint16_t data, int cmd ) {
     return ERR_OK;
 }
 
+/**
+ * Read from the LESI bus.
+ * @param data The data read from the bus.
+ * @return Status code.
+ */
 int lesi_lowlevel_read( uint16_t *data ) {
     int status;
 
@@ -228,6 +276,11 @@ int lesi_lowlevel_read( uint16_t *data ) {
     return ERR_OK;
 }
 
+/**
+ * Strobe the LESI bus for a read
+ * @param waitxfer If this is set, the call will block with STROBE asserted until T1 asserts.
+ * @return Status code.
+ */
 int lesi_lowlevel_read_strobe( int waitxfer ) {
     int status;
     
@@ -237,6 +290,7 @@ int lesi_lowlevel_read_strobe( int waitxfer ) {
     /* Assert strobe */
     gpio_set_mask( LESI_STROBE_MASK );
 
+    /* Wait for the status signal to become valid */
     wait_ns( LESI_DELAY_RD_STROBE );
 
     if ( waitxfer ) {
@@ -253,14 +307,17 @@ int lesi_lowlevel_read_strobe( int waitxfer ) {
     return ERR_OK;
 }
 
+/**
+ * Wait for LESI T1 to be asserted (i.e. for the KLESI to become ready).
+ * @return Status code.
+ */
 int lesi_lowlevel_wait_ready() {
-    uint16_t pin;
 #ifdef CFG_DBG_LESI_IO
     printf("LESI WAIT....");
 #endif
     busy_wait_us(50);
     for ( ;; ) {
-        if ( gpio_get(LESI_T1_PIN))
+        if ( gpio_get(LESI_T1_PIN) )
             return ERR_OK;
         if ( saw_init )
             return ERR_INIT;
@@ -272,6 +329,10 @@ int lesi_lowlevel_wait_ready() {
     //TODO: A better version of this must be possible
 }
 
+/**
+ * Wait for LESI T1 to be deasserted (i.e. for the KLESI to become busy).
+ * @return  Status code.
+ */
 int lesi_lowlevel_wait_busy() {
     uint16_t pin;
 #ifdef CFG_DBG_LESI_IO
@@ -279,7 +340,7 @@ int lesi_lowlevel_wait_busy() {
 #endif
     //busy_wait_us(50);
     for ( ;; ) {
-        if ( !gpio_get(LESI_T1_PIN))
+        if ( !gpio_get(LESI_T1_PIN) )
             return ERR_OK;
         if ( saw_init )
             return ERR_INIT;

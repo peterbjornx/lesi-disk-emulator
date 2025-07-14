@@ -1,21 +1,31 @@
+/**
+ * @file lesi/npr.c
+ * @author Peter Bosch <public@pbx.sh>
+ *
+ * This file implements DMA reads and writes to the host memory on top
+ * of the KLESI driver routines in lesi/klesi.c
+ */
+
 #include "lesi/lesi.h"
-#include "pico/stdlib.h"
 
 /**
  * Reads a single 0 to 16 word block from host memory.
+ * @param buffer The buffer to read the data into
+ * @param count  The number of words to read from host memory.
+ * @return one of the ERR_ status codes
  */
 int lesi_read_dma_block( uint16_t *buffer, int count ) {
-    uint16_t cmd, bcount, sr;
+    uint16_t cmd;
     int status;
+
+    /* Issue the start DMA command */
     cmd  = LESI_CMD_DO_NPR;
     cmd |= LESI_CMD_REGSEL(LESI_REG_RAM);
     if ( count >= 16 ) {
         cmd |= LESI_CMD_WORDCNT( 0 );
     } else {
-        cmd |= LESI_CMD_WORDCNT(16 - count);
+        cmd |= LESI_CMD_WORDCNT( 16 - count );
     }
-    
-    /* Issue the DO NPR command */
     status = lesi_lowlevel_write(  cmd, 1  );
     if ( status )
         return status;
@@ -48,6 +58,14 @@ int lesi_read_dma_block( uint16_t *buffer, int count ) {
     return ERR_OK;
 }
 
+/**
+ * Read data from host memory starting at the current host address
+ * register value.
+ *
+ * @param buffer The buffer to read the data into.
+ * @param count  The number of words to read from host memory.
+ * @return one of the ERR_ status codes
+ */
 int lesi_read_dma( uint16_t *buffer, int count ) {
     int bcount = 16, status;
 
@@ -63,11 +81,17 @@ int lesi_read_dma( uint16_t *buffer, int count ) {
         buffer += bcount;
         count  -= bcount;
     }
+
+    /* Present any hardware / bus errors to the calling routine */
     return lesi_handle_status();
 }
 
 /**
- * Writes a single 0 to 16 word block to host memory.
+ * Writes a single 0 to 16 word block of data to host memory.
+ *
+ * @param buffer The buffer to read the data into.
+ * @param count  The number of words to write.
+ * @return one of the ERR_ status codes
  */
 int lesi_write_dma_block( const uint16_t *buffer, int count ) {
     uint16_t cmd;
@@ -75,9 +99,10 @@ int lesi_write_dma_block( const uint16_t *buffer, int count ) {
 
     /* Send the write RAM command */
     status = lesi_write_ram( 16 - count, buffer, count );
+    //TODO: Why is the status ignored here
     
     /* Start the NPR via a WRITE RAM with DO NPR set */
-    /* As we don't issue a data cycle, this will not write RAM */
+    /* As we don't issue a data cycle, this will not write the scratchpad */
     cmd  = LESI_CMD_WRITE | LESI_CMD_DO_NPR;
     cmd |= LESI_CMD_REGSEL(LESI_REG_RAM);
     if ( count >= 16 ) {
@@ -85,7 +110,6 @@ int lesi_write_dma_block( const uint16_t *buffer, int count ) {
     } else {
         cmd |= LESI_CMD_WORDCNT(16 - count);
     }
-
     status = lesi_lowlevel_write(  cmd, 1  );
     if ( status )
         return status;
@@ -100,12 +124,19 @@ int lesi_write_dma_block( const uint16_t *buffer, int count ) {
     if ( status )
         return status;
 
-    /* Capture */
+    /* Present any hardware / bus errors to the calling routine */
     return lesi_handle_status();
 }
 
-
-int lesi_write_dma( uint16_t *buffer, int count ) {
+/**
+ * Write data to host memory starting at the current host address
+ * register value.
+ *
+ * @param buffer The buffer to read the data into.
+ * @param count  The number of words to write.
+ * @return one of the ERR_ status codes
+ */
+int lesi_write_dma( const uint16_t *buffer, int count ) {
     int bcount = 16, status;
 
     while ( count ) {
@@ -120,11 +151,20 @@ int lesi_write_dma( uint16_t *buffer, int count ) {
         buffer += bcount;
         count  -= bcount;
     }
+
+    /* Present any hardware / bus errors to the calling routine */
     return lesi_handle_status();
 }
 
 static const uint16_t zero_buf[16] = {0};
 
+/**
+ * Write zeros to host memory starting at the current host address
+ * register value.
+ *
+ * @param count  The number of words to write.
+ * @return one of the ERR_ status codes
+ */
 int lesi_write_dma_zeros( int count ) {
     int bcount = 16, status;
 
@@ -139,5 +179,7 @@ int lesi_write_dma_zeros( int count ) {
 
         count  -= bcount;
     }
+
+    /* Present any hardware / bus errors to the calling routine */
     return lesi_handle_status();
 }

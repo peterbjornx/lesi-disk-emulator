@@ -4,17 +4,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include "projconfig.h"
-#include "mscp/packet.h"
 
 void hostif_startup( mscpa_t *a ) {
     int status;
     uint16_t lesi_sr;
 
+    /* Identify what KLESI we are connected to */
     status = lesi_read_reg( LESI_REG_STATUS, &lesi_sr );
     if ( status )
         goto err;
     a->klesi_type = lesi_sr & LESI_SR_IDENT_MASK;
 
+    /* Set up module id and feature fields */
     a->mod_id     = MSCP_MOD_ID;
     a->fw_ver     = MSCP_FW_VERSION;
     a->port_type  = MSCP_PORT_TYPE;
@@ -52,6 +53,13 @@ err:
     a->step = STEP_TRYSTART;
 }
 
+/**
+ * Notify the host of a ring transition.
+ * @param a The MSCP adapter context
+ * @param c Whether the command ringbuffer transitioned
+ * @param r Whether the response ringbuffer transitioned
+ * @return one of the ERR_ status codes
+ */
 int hostif_send_ring_irq( mscpa_t *a, int c, int r ) {
     uint16_t v= 1;
     int status;
@@ -78,6 +86,11 @@ int hostif_send_ring_irq( mscpa_t *a, int c, int r ) {
 
 }
 
+/**
+ * Process incoming and outgoing ring buffers
+ * @param a The MSCP adapter context
+ * @return one of the ERR_ status codes
+ */
 int hostif_process( mscpa_t *a ) {
     int status;
 
@@ -94,6 +107,11 @@ void hostif_reinit( mscpa_t *a ) {
     a->step = STEP_REINIT;
 }
 
+/**
+ * Main loop function during normal hostif operation.
+ * @param a The MSCP adapter context
+ * @return one of the ERR_ status codes
+ */
 void hostif_active_loop( mscpa_t *a ) {
     int status, err, when;
 
@@ -104,29 +122,31 @@ void hostif_active_loop( mscpa_t *a ) {
 
     if ( err == ERR_INIT ) {
         hostif_reinit( a );
-        return;
     } else if ( status & ERR_FATAL ) {
         hostif_fatal( a, a->fatal_code );
-        return;
     }
     
     
 }
 
+/**
+ * Handle and report a fatal error.
+ * @param a The MSCP adapter context
+ * @param fatal_code The error code to report to the host.
+ */
 void hostif_fatal( mscpa_t *a, int fatal_code ) {
     lesi_sa_write( SA_ERROR | a->fatal_code );
     //TODO: Interrupt?
     a->step = ERR_FATAL;
     printf("HostIF Fatal error: %i\n", fatal_code);
-    return; 
-    
 }
 
-
+/**
+ * Main loop function for host interface.
+ * @param a The MSCP adapter context
+ */
 void hostif_loop(  mscpa_t *a ) {
     uint16_t sr;
-    uint16_t sa;
-    int status;
     switch( a->step ) {
         case STEP_TRYSTART:  hostif_startup ( a ); break;
         case 1            :  hostif_istep1  ( a ); break;
@@ -159,21 +179,33 @@ void hostif_loop(  mscpa_t *a ) {
                 a->step = STEP_REINIT;
             break;
     }
-    return;
 }
 
+/**
+ * Create and initialize a HostIF context structure
+ */
 mscpa_t *hostif_setup(  ) {
     mscpa_t *a;
+    /* Allocate and clear HostIF state structure */
     a = malloc( sizeof(mscpa_t) );
     if ( a == NULL )
         return NULL;
     memset( a, 0, sizeof(mscpa_t) );
+
+    /* Set up fields in context structure */
     a->server = NULL;
     a->step = STEP_TRYSTART;
     hostif_cring_reset( a );
     hostif_rring_reset( a );
+
+    return a;
 }
 
+/**
+ * Attach a MSCP server to the host interface
+ * @param hostif The MSCP adapter context
+ * @param server The MSCP server to attach to the HostIF
+ */
 void hostif_set_server( mscpa_t *hostif, mscps_t *server ) {
     hostif->server = server;
 }
@@ -185,7 +217,7 @@ int hostif_read_buf ( mscpa_t *hostif, void *target, const void *bufdesc, int of
     //TODO: Support UBA channels & purge
     status = lesi_set_host_addr( (*bufd + offset) & 0xFFFFFF );
     propagate(status);
-    
+
     return lesi_read_dma( target, count / 2 );
 }
 

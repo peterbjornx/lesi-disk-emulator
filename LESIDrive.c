@@ -66,6 +66,7 @@ int main()
 
     /* If it failed, pull our reset line */
     if ( server->c_unit->u_state != MUS_AVAIL) {
+        sleep_ms(10);
         AIRCR_Register = 0x5FA0004;
     }
 
